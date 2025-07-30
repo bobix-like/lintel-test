@@ -2,7 +2,6 @@
 #define S1AP_DB
 
 #include <expected>
-#include <map>
 #include <optional>
 #include <type_traits>
 #include <unordered_map>
@@ -10,7 +9,10 @@
 #include <vector>
 
 template <typename T>
-concept IsCGI = std::is_same_v<std::decay<T>, std::vector<unsigned char>>;
+concept IsCGI = std::is_same_v<std::decay_t<T>, std::vector<unsigned char>>;
+
+template <typename T>
+concept IsOptCgi = std::is_same_v<std::decay_t<T>, std::optional<std::vector<unsigned char>>>;
 
 class Event final
 {
@@ -128,22 +130,22 @@ class S1apOut final
         CgiChange
     };
 
-    template <IsCGI CGI>
+    template <IsOptCgi CGI>
     S1apOut(const Type type,
             const unsigned long imsi,
             CGI&& cgi)
     : type_(type),
       imsi_(imsi),
-      cgi_(std::forward(cgi)) {}
+      cgi_(std::forward<CGI>(cgi)) {}
 
-    Type GetType();
-    unsigned long GetImsi();
-    const std::vector<unsigned char>& GetCgi_;
+    Type GetType() const;
+    unsigned long GetImsi() const;
+    const std::optional<std::vector<unsigned char>>& GetCgi_() const;
 
   private:
     Type type_;
     unsigned long imsi_;
-    std::vector<unsigned char> cgi_;
+    std::optional<std::vector<unsigned char>> cgi_;
 };
 
 class S1apDB final
@@ -151,7 +153,7 @@ class S1apDB final
   public:
     enum class Error
     {
-      ImsiNotExist,
+      ImsiNotExists,
     };
 
     using HandleError = std::variant<Error, Event::Error>;
@@ -163,6 +165,7 @@ class S1apDB final
   private:
     S1apDB() = default;
 
+    // NOTE: TODO: add perfect forwarding for moving cgi from event
     HandleOut HandleAttachRequestWithImsi(const Event& event);
     HandleOut HandleAttachRequestWithMTmsi(const Event& event);
     HandleOut HandleIdentityResponse(const Event& event);
@@ -173,21 +176,46 @@ class S1apDB final
     HandleOut HandleUEContextReleaseCommand(const Event& event);
     HandleOut HandleUEContextReleaseResponse(const Event& event);
 
+    std::expected<unsigned long, HandleError> ResolveImsi(const Event& event);
+
     class Subscriber
     {
       public:
-        void SetLastEvent(Event::Type eventType, unsigned long timestamp);
+        enum class State
+        {
+          DETACHED,
+          ATTACHED,
+        };
 
-        unsigned long GetImsi();
-        const std::vector<unsigned char>& GetCgi();
+        void SetLastEvent(const Event::Type eventType, const unsigned long timestamp);
+        void SetMTmsi(const unsigned int mTmsi);
+        void SetEnodebID(const unsigned int enodebID);
+        void SetMmeID(const unsigned int mmeID);
+        void SetState(const State state);
+
+        template <IsCGI CGI>
+        void SetCgi(CGI&& cgi);
+
+        std::optional<unsigned long> GetImsi() const;
+        std::optional<unsigned int> GetMTmsi() const;
+        std::optional<unsigned int> GetEnodebID() const;
+        std::optional<unsigned int> GetMmeID() const;
+        const std::optional<std::vector<unsigned char>>& GetCgi() const;
+
+        Event::Type GetLastEventType() const;
+        unsigned long GetLastEventTimestamp() const;
+
+        State GetState() const;
 
       private:
-        unsigned long imsi_;
-        unsigned int mTmsi_;
-        unsigned int enodebID_;
-        unsigned int mmeID_;
+        std::optional<unsigned long> imsi_    = std::nullopt;
+        std::optional<unsigned int> mTmsi_    = std::nullopt;
+        std::optional<unsigned int> enodebID_ = std::nullopt;
+        std::optional<unsigned int> mmeID_    = std::nullopt;
 
-        std::vector<unsigned char> cgi_;
+        std::optional<std::vector<unsigned char>> cgi_ = std::nullopt;
+
+        State state_ = State::DETACHED;
 
         Event::Type eventType_;
         unsigned long lastEventTimestamp_;
@@ -197,7 +225,6 @@ class S1apDB final
     std::unordered_map<unsigned int, unsigned long> mTmsiToImsi;
     std::unordered_map<unsigned int, unsigned long> enodebIDToImsi;
     std::unordered_map<unsigned int, unsigned long> mmeIDToImsi;
-    std::map<unsigned int, unsigned long> timestampToImsi;
 
 };
 

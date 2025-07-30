@@ -53,47 +53,58 @@ S1apDB::HandleOut S1apDB::Handle(const Event& event)
   }
 }
 
-S1apDB::HandleOut HandleAttachRequestWithImsi(const Event& event)
+S1apDB::HandleOut S1apDB::HandleAttachRequestWithImsi(const Event& event)
+{
+  auto imsi = S1apDB::ResolveImsi(event);
+  if (!imsi.has_value())
+  {
+    return std::unexpected(S1apDB::Error::ImsiNotExists);
+  }
+
+  auto& subscriber = S1apDB::imsiToSubscriber[imsi.value()];
+  subscriber.SetLastEvent(event.GetType(), event.GetTimestamp());
+  subscriber.SetState(S1apDB::Subscriber::State::ATTACHED);
+
+  S1apOut response = S1apOut(S1apOut::Type::Reg, imsi.value(), subscriber.GetCgi());
+  return response;
+}
+
+S1apDB::HandleOut S1apDB::HandleAttachRequestWithMTmsi(const Event& event)
 {
 
 }
 
-S1apDB::HandleOut HandleAttachRequestWithMTmsi(const Event& event)
+S1apDB::HandleOut S1apDB::HandleIdentityResponse(const Event& event)
 {
 
 }
 
-S1apDB::HandleOut HandleIdentityResponse(const Event& event)
+S1apDB::HandleOut S1apDB::HandleAttachAccept(const Event& event)
 {
 
 }
 
-S1apDB::HandleOut HandleAttachAccept(const Event& event)
+S1apDB::HandleOut S1apDB::HandlePaging(const Event& event)
 {
 
 }
 
-S1apDB::HandleOut HandlePaging(const Event& event)
+S1apDB::HandleOut S1apDB::HandlePathSwitchRequest(const Event& event)
 {
 
 }
 
-S1apDB::HandleOut HandlePathSwitchRequest(const Event& event)
+S1apDB::HandleOut S1apDB::HandlePathSwitchRequestAcknowledge(const Event& event)
 {
 
 }
 
-S1apDB::HandleOut HandlePathSwitchRequestAcknowledge(const Event& event)
+S1apDB::HandleOut S1apDB::HandleUEContextReleaseCommand(const Event& event)
 {
 
 }
 
-S1apDB::HandleOut HandleUEContextReleaseCommand(const Event& event)
-{
-
-}
-
-S1apDB::HandleOut HandleUEContextReleaseResponse(const Event& event)
+S1apDB::HandleOut S1apDB::HandleUEContextReleaseResponse(const Event& event)
 {
 
 }
