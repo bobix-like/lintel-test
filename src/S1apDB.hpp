@@ -6,6 +6,7 @@
 #include <optional>
 #include <type_traits>
 #include <unordered_map>
+#include <variant>
 #include <vector>
 
 template <typename T>
@@ -69,24 +70,52 @@ class Event final
     static Event CreateUEContextReleaseCommand(const unsigned long timestamp,
                                                const unsigned int enodebID,
                                                const unsigned int mmeID,
-                                               CGI cgi);
+                                               CGI&& cgi);
 
     static Event CreateUEContextReleaseResponse(const unsigned long timestamp,
                                                 const unsigned int enodebID,
                                                 const unsigned int mmeID);
 
+    const Type& GetType() const;
+    const unsigned long& GetTimestamp() const;
+    const std::optional<std::vector<unsigned char>>& GetCgi() const;
+    const std::optional<unsigned long>& GetImsi() const;
+    const std::optional<unsigned int>& GetEnodebID() const;
+    const std::optional<unsigned int>& GetMmeID() const;
+    const std::optional<unsigned int>& GetMTmci() const;
+
+    enum class Error 
+    {
+      WrongEventType,
+      WrongImsiAndMTmsiArgs,
+      ImsiNotExist,
+      BadImsi,
+      BadEnodebID,
+      BadMTmsi,
+      BadMmeID,
+      BadCgi,
+    };
+
+    std::expected<void, Error> Verify() const;
+
   private:
     Type type_;
     unsigned long timestamp_;
 
-    std::optional<std::vector<unsigned char>> cgi_;
+    std::optional<std::vector<unsigned char>> cgi_      = std::nullopt;
+    std::optional<unsigned long>              imsi_     = std::nullopt;
+    std::optional<unsigned int>               enodebID_ = std::nullopt;
+    std::optional<unsigned int>               mmeID_    = std::nullopt;
+    std::optional<unsigned int>               mTmci_    = std::nullopt;
 
-    std::optional<unsigned long> imsi_;
-
-    std::optional<unsigned int> enodebID_;
-    std::optional<unsigned int> mmeID_;
-    std::optional<unsigned int> mTmci_;
-
+    std::expected<void, Error> VerifyAttachRequest() const;
+    std::expected<void, Error> VerifyIdentityResponse() const;
+    std::expected<void, Error> validateAttachAccept() const;
+    std::expected<void, Error> VerifyPaging() const;
+    std::expected<void, Error> VerifyPathSwitchRequest() const;
+    std::expected<void, Error> VerifyPathSwitchRequestAcknowledge() const;
+    std::expected<void, Error> VerifyUEContextReleaseCommand() const;
+    std::expected<void, Error> VerifyUEContextReleaseResponse() const;
 };
 
 class S1apOut final
@@ -120,12 +149,56 @@ class S1apOut final
 class S1apDB final
 {
   public:
-    enum class Error {/* TODO: */};
-    std::expected<std::optional<S1apOut>, Error> Handle(const Event& event);
+    enum class Error
+    {
+      ImsiNotExist,
+    };
+
+    using HandleError = std::variant<Error, Event::Error>;
+    using HandleOut = std::expected<std::optional<S1apOut>, HandleError>;
+    HandleOut Handle(const Event& event);
+
+    static S1apDB& GetInstance();
 
   private:
-    class Subscriber {/* TODO: */};
-    // TODO:
+    S1apDB() = default;
+
+    HandleOut HandleAttachRequestWithImsi(const Event& event);
+    HandleOut HandleAttachRequestWithMTmsi(const Event& event);
+    HandleOut HandleIdentityResponse(const Event& event);
+    HandleOut HandleAttachAccept(const Event& event);
+    HandleOut HandlePaging(const Event& event);
+    HandleOut HandlePathSwitchRequest(const Event& event);
+    HandleOut HandlePathSwitchRequestAcknowledge(const Event& event);
+    HandleOut HandleUEContextReleaseCommand(const Event& event);
+    HandleOut HandleUEContextReleaseResponse(const Event& event);
+
+    class Subscriber
+    {
+      public:
+        void SetLastEvent(Event::Type eventType, unsigned long timestamp);
+
+        unsigned long GetImsi();
+        const std::vector<unsigned char>& GetCgi();
+
+      private:
+        unsigned long imsi_;
+        unsigned int mTmsi_;
+        unsigned int enodebID_;
+        unsigned int mmeID_;
+
+        std::vector<unsigned char> cgi_;
+
+        Event::Type eventType_;
+        unsigned long lastEventTimestamp_;
+    };
+
+    std::unordered_map<unsigned long, Subscriber> imsiToSubscriber;
+    std::unordered_map<unsigned int, unsigned long> mTmsiToImsi;
+    std::unordered_map<unsigned int, unsigned long> enodebIDToImsi;
+    std::unordered_map<unsigned int, unsigned long> mmeIDToImsi;
+    std::map<unsigned int, unsigned long> timestampToImsi;
+
 };
 
 #endif // S1AP_DB
