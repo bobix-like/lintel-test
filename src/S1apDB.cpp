@@ -312,19 +312,181 @@ unsigned int S1apDB::GenerateNewMTmsi()
   return nextMTmsi_++;
 }
 
-std::expected<unsigned long, S1apDB::HandleError> S1apDB::ResolveImsi(const Event& event)
+S1apDB::HandleOut S1apDB::ProcessNewAttach(const Event& event)
 {
-  if (event.GetImsi().has_value())
-    return event.GetImsi().value();
+  unsigned long imsi = event.GetImsi().value();
 
-  else if (event.GetMTmsi().has_value())
+  Subscriber newSubscriber;
+
+  newSubscriber.SetImsi(imsi);
+  newSubscriber.SetLastEvent(event.GetType(), event.GetTimestamp());
+  newSubscriber.SetState(Subscriber::State::ATTACHED);
+  newSubscriber.SetEnodebID(event.GetEnodebID().value());
+
+  if (event.GetCgi().has_value())
+      newSubscriber.SetCgi(event.GetCgi().value());
+
+  imsiToSubscriber[imsi] = newSubscriber;
+
+  unsigned int newMTmsi = GenerateNewMTmsi();
+  imsiToSubscriber[imsi].SetMTmsi(newMTmsi);
+  mTmsiToImsi[newMTmsi] = imsi;
+  enodebIDToImsi[newSubscriber.GetEnodebID().value()] = imsi;
+
+  std::println("MME: User {} attached. Assigned MTmsi: {}", imsi, newMTmsi);
+
+  return S1apOut(S1apOut::Type::Reg, imsi, event.GetCgi());
+}
+
+S1apDB::HandleOut S1apDB::ProcessExistingAttach(Subscriber& subscriber, const Event& event)
+{
+  subscriber.SetState(Subscriber::State::ATTACHED);
+  subscriber.SetEnodebID(event.GetEnodebID().value());
+
+  if (event.GetCgi().has_value())
+      subscriber.SetCgi(event.GetCgi().value());
+
+  subscriber.SetLastEvent(event.GetType(), event.GetTimestamp());
+
+  const auto currentMTmsi = subscriber.GetMTmsi().value_or(GenerateNewMTmsi());
+
+  if (!subscriber.GetMTmsi().has_value())
   {
-    auto it = mTmsiToImsi.find(event.GetMTmsi().value());
-    if (it != mTmsiToImsi.end())
-      return it->second;
+      subscriber.SetMTmsi(currentMTmsi);
+      mTmsiToImsi[currentMTmsi] = event.GetImsi().value();
   }
 
-  return std::unexpected(Error::NoImsiOrMTmsiInEvent);
+  enodebIDToImsi[event.GetEnodebID().value()] = subscriber.GetImsi().value();
+  std::println("MME: User {} re-attached. Current MTmsi: {}", event.GetImsi().value(), currentMTmsi);
+
+  return S1apOut(S1apOut::Type::Reg, event.GetImsi().value(), event.GetCgi());
+}
+
+S1apDB::HandleOut S1apDB::ProcessDuplicateAttach(Subscriber& subscriber, const Event& event)
+{
+  subscriber.SetLastEvent(event.GetType(), event.GetTimestamp());
+  std::println("MME: User {} already attached. Ignoring duplicate Attach Request.", event.GetImsi().value());
+
+  return std::nullopt;
+}
+
+S1apDB::HandleOut S1apDB::ProcessIdentityResponseForNewUser(const Event& event)
+{
+  unsigned long imsi = event.GetImsi().value();
+
+  imsiToSubscriber[imsi] = {};
+  auto& newSubscriber = imsiToSubscriber[imsi];
+
+  newSubscriber.SetImsi(imsi);
+  newSubscriber.SetLastEvent(event.GetType(), event.GetTimestamp());
+  newSubscriber.SetState(Subscriber::State::ATTACHED);
+  newSubscriber.SetEnodebID(event.GetEnodebID().value());
+
+  if (event.GetCgi().has_value())
+    newSubscriber.SetCgi(event.GetCgi().value());
+
+  unsigned int newMTmsi = GenerateNewMTmsi();
+  imsiToSubscriber[imsi].SetMTmsi(newMTmsi);
+  mTmsiToImsi[newMTmsi] = imsi;
+  enodebIDToImsi[event.GetEnodebID().value()] = imsi;
+  imsiToIdentityRequestTimeout_.erase(imsi);
+
+  std::println("MME: Received Identity Response for user {}. User attached. Assigned MTmsi: {}", imsi, newMTmsi);
+  return S1apOut(S1apOut::Type::Reg, imsi, event.GetCgi());
+}
+
+S1apDB::HandleOut S1apDB::ProcessIdentityResponseForAttachingUser(Subscriber& subscriber, const Event& event)
+{
+  subscriber.SetState(Subscriber::State::ATTACHED);
+  subscriber.SetLastEvent(event.GetType(), event.GetTimestamp());
+  subscriber.SetEnodebID(event.GetEnodebID().value());
+
+  if (event.GetCgi().has_value())
+    subscriber.SetCgi(event.GetCgi().value());
+
+  unsigned int currentMTmsi = subscriber.GetMTmsi().value_or(GenerateNewMTmsi());
+
+  if (!subscriber.GetMTmsi().has_value())
+  {
+      subscriber.SetMTmsi(currentMTmsi);
+      mTmsiToImsi[currentMTmsi] = event.GetImsi().value();
+  }
+
+  enodebIDToImsi[event.GetEnodebID().value()] = subscriber.GetImsi().value();
+  imsiToIdentityRequestTimeout_.erase(event.GetImsi().value());
+
+  std::println("MME: User {} moved from ATTACHING to ATTACHED. Current MTmsi: {}", event.GetImsi().value(), currentMTmsi);
+  return S1apOut(S1apOut::Type::Reg, event.GetImsi().value(), event.GetCgi());
+}
+
+S1apDB::HandleOut S1apDB::ProcessPagingRequest(Subscriber& subscriber, const Event& event)
+{
+  if (subscriber.GetState() != Subscriber::State::ATTACHED
+  &&  subscriber.GetState() != Subscriber::State::DETACHED)
+  {
+      std::println(stderr, "MME: Paging for user {} received in unexpected state: {}. Ignoring.",
+                   subscriber.GetImsi().value(), static_cast<int>(subscriber.GetState()));
+
+      return std::nullopt;
+  }
+
+  subscriber.SetLastEvent(event.GetType(), event.GetTimestamp());
+  subscriber.SetState(Subscriber::State::PAGING_STATE);
+
+  std::println("MME: Paging for user {} (MTmsi: {}). Changing state to PAGING_STATE.",
+               subscriber.GetImsi().value(), event.GetMTmsi().value());
+
+  return std::nullopt;
+}
+
+S1apDB::HandleOut S1apDB::ProcessPathSwitchRequest(Subscriber& subscriber, const Event& event)
+{
+  if (subscriber.GetState() != Subscriber::State::ATTACHED)
+  {
+      std::println(stderr, "MME: Path Switch Request for user {} received in unexpected state: {}. Ignoring.",
+                   subscriber.GetImsi().value(), static_cast<int>(subscriber.GetState()));
+
+      return std::unexpected(Error::WrongState);
+  }
+
+  unsigned int oldEnodebID = event.GetEnodebID().value();
+  unsigned int newEnodebID = event.GetCgi().value_or(std::vector<unsigned char>{}).front();
+
+  subscriber.SetLastEvent(event.GetType(), event.GetTimestamp());
+  subscriber.SetEnodebID(newEnodebID);
+  subscriber.SetState(Subscriber::State::HANDOVER_STATE);
+
+  enodebIDToImsi.erase(oldEnodebID);
+  enodebIDToImsi[newEnodebID] = subscriber.GetImsi().value();
+
+  std::println("MME: Path Switch Request for user {}. Moved from eNodeB {} to {}.",
+               subscriber.GetImsi().value(), oldEnodebID, newEnodebID);
+
+  return S1apOut(S1apOut::Type::CgiChange, subscriber.GetImsi().value(), event.GetCgi());
+}
+
+S1apDB::HandleOut S1apDB::ProcessUEContextRelease(Subscriber& subscriber, const Event& event)
+{
+  unsigned long imsi = subscriber.GetImsi().value();
+  
+  subscriber.SetState(Subscriber::State::DETACHED);
+  subscriber.SetLastEvent(event.GetType(), event.GetTimestamp());
+
+  DetachSubscriber(subscriber);
+  
+  std::println("MME: UE Context for user {} released. User detached.", imsi);
+  return S1apOut(S1apOut::Type::UnReg, imsi, subscriber.GetCgi());
+}
+
+void S1apDB::DetachSubscriber(Subscriber& subscriber)
+{
+  if (subscriber.GetMTmsi().has_value())
+      mTmsiToImsi.erase(subscriber.GetMTmsi().value());
+
+  if (subscriber.GetEnodebID().has_value())
+      enodebIDToImsi.erase(subscriber.GetEnodebID().value());
+
+  imsiToSubscriber.erase(subscriber.GetImsi().value());
 }
 
 S1apDB::HandleOut S1apDB::Handle(const Event& event)
@@ -427,7 +589,7 @@ S1apDB::HandleOut S1apDB::HandlePaging(const Event& event)
 S1apDB::HandleOut S1apDB::HandlePathSwitchRequest(const Event& event)
 {
     unsigned int oldEnodebID = event.GetEnodebID().value();
-    
+
     return ResolveImsiFromEnodebID(oldEnodebID)
         .and_then([&](unsigned long imsi) -> HandleOut {
             auto it = imsiToSubscriber.find(imsi);
@@ -435,6 +597,7 @@ S1apDB::HandleOut S1apDB::HandlePathSwitchRequest(const Event& event)
                 std::println(stderr, "MME: Path Switch Request for non-existent subscriber IMSI: {}", imsi);
                 return std::unexpected(Error::SubscriberNotFound);
             }
+
             return ProcessPathSwitchRequest(it->second, event);
         });
 }
@@ -442,7 +605,7 @@ S1apDB::HandleOut S1apDB::HandlePathSwitchRequest(const Event& event)
 S1apDB::HandleOut S1apDB::HandleUEContextReleaseResponse(const Event& event)
 {
     unsigned int enodebID = event.GetEnodebID().value();
-    
+
     return ResolveImsiFromEnodebID(enodebID)
         .and_then([&](unsigned long imsi) -> HandleOut {
             auto it = imsiToSubscriber.find(imsi);
@@ -450,6 +613,7 @@ S1apDB::HandleOut S1apDB::HandleUEContextReleaseResponse(const Event& event)
                 std::println(stderr, "MME: UE Context Release Response for non-existent subscriber IMSI: {}", imsi);
                 return std::unexpected(Error::SubscriberNotFound);
             }
+
             return ProcessUEContextRelease(it->second, event);
         });
 }

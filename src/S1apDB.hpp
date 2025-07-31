@@ -165,6 +165,7 @@ class S1apDB final
       InvalidStateForEvent,
       NoImsiOrMTmsiInEvent,
       TimeoutOccurred,
+      WrongState,
     };
 
     using HandleError = std::variant<Error, Event::Error>;
@@ -247,7 +248,7 @@ class S1apDB final
 
     std::expected<unsigned long, HandleError> ResolveImsiFromEvent(const Event& event) const;
     std::expected<unsigned long, HandleError> ResolveImsiFromEnodebID(unsigned int enodebID) const;
-    void RetachSubscriber(Subscriber& subscriber);
+    void DetachSubscriber(Subscriber& subscriber);
 
     HandleOut ProcessNewAttach(const Event& event);
     HandleOut ProcessExistingAttach(Subscriber& subscriber, const Event& event);
