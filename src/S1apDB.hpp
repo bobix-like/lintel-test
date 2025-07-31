@@ -1,5 +1,5 @@
-#ifndef S1AP_DB
-#define S1AP_DB
+#ifndef S1AP_DB_HPP
+#define S1AP_DB_HPP
 
 #include <expected>
 #include <optional>
@@ -9,10 +9,13 @@
 #include <vector>
 
 template <typename T>
-concept IsCGI = std::is_same_v<std::decay_t<T>, std::vector<unsigned char>>;
+concept IsCgi = std::is_same_v<std::decay_t<T>, std::vector<unsigned char>>;
 
 template <typename T>
-concept IsOptCgi = std::is_same_v<std::decay_t<T>, std::optional<std::vector<unsigned char>>>;
+concept IsOptionalCgi = std::is_same_v<std::decay_t<T>, std::optional<std::vector<unsigned char>>>;
+
+template <typename T>
+concept IsCgiCompatible = IsCgi<T> || IsOptionalCgi<T>;
 
 class Event final
 {
@@ -29,50 +32,48 @@ class Event final
       UEContextReleaseResponse,     // MME    --> ENODEB
     };
 
-    template <IsCGI CGI>
+    template <IsCgiCompatible CgiArg>
     static Event CreateAttachRequestWithImsi(const unsigned long timestamp,
                                              const unsigned long imsi,
-                                             const unsigned int enodebID,
-                                             CGI&& cgi);
-
-    template <IsCGI CGI>
+                                             const unsigned int enodebID, CgiArg&& cgi);
+    template <IsCgiCompatible CgiArg>
     static Event CreateAttachRequestWithMTmsi(const unsigned long timestamp,
                                               const unsigned int enodebID,
                                               const unsigned int mTmsi,
-                                              CGI&& cgi);
+                                              CgiArg&& cgi);
 
-    template <IsCGI CGI>
+    template <IsCgiCompatible CgiArg>
     static Event CreateIdentityResponse(const unsigned long timestamp,
                                         const unsigned long imsi,
                                         const unsigned int enodebID,
                                         const unsigned int mmeID,
-                                        CGI&& cgi);
+                                        CgiArg&& cgi);
 
     static Event CreateAttachAccept(const unsigned long timestamp,
                                     const unsigned int enodebID,
                                     const unsigned int mmeID,
                                     const unsigned int mTmsi);
 
-    template <IsCGI CGI>
+    template <IsCgiCompatible CgiArg>
     static Event CreatePaging(const unsigned long timestamp,
                               const unsigned int mTmsi,
-                              CGI&& cgi);
+                              CgiArg&& cgi);
 
-    template <IsCGI CGI>
+    template <IsCgiCompatible CgiArg>
     static Event CreatePathSwitchRequest(const unsigned long timestamp,
                                          const unsigned int enodebID,
                                          const unsigned int mmeID,
-                                         CGI&& cgi);
+                                         CgiArg&& cgi);
 
     static Event CreatePathSwitchRequestAcknowledge(const unsigned long timestamp,
                                                     const unsigned int enodebID,
                                                     const unsigned int mmeID);
 
-    template <IsCGI CGI>
+    template <IsCgiCompatible CgiArg>
     static Event CreateUEContextReleaseCommand(const unsigned long timestamp,
                                                const unsigned int enodebID,
                                                const unsigned int mmeID,
-                                               CGI&& cgi);
+                                               CgiArg&& cgi);
 
     static Event CreateUEContextReleaseResponse(const unsigned long timestamp,
                                                 const unsigned int enodebID,
@@ -84,23 +85,27 @@ class Event final
     const std::optional<unsigned long>& GetImsi() const;
     const std::optional<unsigned int>& GetEnodebID() const;
     const std::optional<unsigned int>& GetMmeID() const;
-    const std::optional<unsigned int>& GetMTmci() const;
+    const std::optional<unsigned int>& GetMTmsi() const;
 
-    enum class Error 
+    enum class Error
     {
       WrongEventType,
       WrongImsiAndMTmsiArgs,
       ImsiNotExist,
+      MTmsiNotExist,
       BadImsi,
       BadEnodebID,
       BadMTmsi,
       BadMmeID,
       BadCgi,
+      MissingImsiOrMTmsi,
     };
 
     std::expected<void, Error> Verify() const;
 
   private:
+    Event() = default;
+
     Type type_;
     unsigned long timestamp_;
 
@@ -108,11 +113,12 @@ class Event final
     std::optional<unsigned long>              imsi_     = std::nullopt;
     std::optional<unsigned int>               enodebID_ = std::nullopt;
     std::optional<unsigned int>               mmeID_    = std::nullopt;
-    std::optional<unsigned int>               mTmci_    = std::nullopt;
+    std::optional<unsigned int>               mTmsi_    = std::nullopt;
 
     std::expected<void, Error> VerifyAttachRequest() const;
+    std::expected<void, Error> VerifyIdentityRequest() const;
     std::expected<void, Error> VerifyIdentityResponse() const;
-    std::expected<void, Error> validateAttachAccept() const;
+    std::expected<void, Error> VerifyAttachAccept() const;
     std::expected<void, Error> VerifyPaging() const;
     std::expected<void, Error> VerifyPathSwitchRequest() const;
     std::expected<void, Error> VerifyPathSwitchRequestAcknowledge() const;
@@ -125,27 +131,27 @@ class S1apOut final
   public:
     enum class Type
     {
-        Reg,
-        UnReg,
-        CgiChange
+      Reg,
+      UnReg,
+      CgiChange
     };
 
-    template <IsOptCgi CGI>
+    template <IsOptionalCgi CgiArg>
     S1apOut(const Type type,
             const unsigned long imsi,
-            CGI&& cgi)
+            CgiArg&& cgi)
     : type_(type),
       imsi_(imsi),
-      cgi_(std::forward<CGI>(cgi)) {}
+      cgi_(std::forward<CgiArg>(cgi)) {}
 
     Type GetType() const;
     unsigned long GetImsi() const;
-    const std::optional<std::vector<unsigned char>>& GetCgi_() const;
+    const std::optional<std::vector<unsigned char>>& GetCgi() const;
 
   private:
     Type type_;
     unsigned long imsi_;
-    std::optional<std::vector<unsigned char>> cgi_;
+    std::optional<std::vector<unsigned char>> cgi_ = std::nullopt;
 };
 
 class S1apDB final
@@ -154,20 +160,28 @@ class S1apDB final
     enum class Error
     {
       ImsiNotExists,
+      MTmsiNotExists,
+      SubscriberNotFound,
+      InvalidStateForEvent,
+      NoImsiOrMTmsiInEvent,
+      TimeoutOccurred,
     };
 
     using HandleError = std::variant<Error, Event::Error>;
-    using HandleOut = std::expected<std::optional<S1apOut>, HandleError>;
+    using HandleOut   = std::expected<std::optional<S1apOut>, HandleError>;
+
     HandleOut Handle(const Event& event);
+    void HandleTimeouts(unsigned long currentTimestamp);
 
     static S1apDB& GetInstance();
 
   private:
     S1apDB() = default;
 
-    // NOTE: TODO: add perfect forwarding for moving cgi from event
-    HandleOut HandleAttachRequestWithImsi(const Event& event);
-    HandleOut HandleAttachRequestWithMTmsi(const Event& event);
+    // NOTE: TODO: add perfect forwarding for moving cgi from event - это теперь реализовано
+    // NOTE: it's a good idea to create class State which know how to handle itself. It forces single responcibility principle
+    // also it wuld be good if I use such pattern when I verified Event
+    HandleOut HandleAttachRequest(const Event& event);
     HandleOut HandleIdentityResponse(const Event& event);
     HandleOut HandleAttachAccept(const Event& event);
     HandleOut HandlePaging(const Event& event);
@@ -176,7 +190,10 @@ class S1apDB final
     HandleOut HandleUEContextReleaseCommand(const Event& event);
     HandleOut HandleUEContextReleaseResponse(const Event& event);
 
-    std::expected<unsigned long, HandleError> ResolveImsi(const Event& event);
+  // TODO: maybe generate m_tmsi isn't needed, to be honest this method is generated by GPT
+    unsigned int GenerateNewMTmsi();
+
+    unsigned int nextMTmsi_ = 1000; 
 
     class Subscriber
     {
@@ -184,7 +201,12 @@ class S1apDB final
         enum class State
         {
           DETACHED,
+          ATTACHING,
           ATTACHED,
+          PAGING_STATE,
+          SERVICE_REQUEST_PENDING,
+          HANDOVER_STATE,
+          RELEASING,
         };
 
         void SetLastEvent(const Event::Type eventType, const unsigned long timestamp);
@@ -193,8 +215,10 @@ class S1apDB final
         void SetMmeID(const unsigned int mmeID);
         void SetState(const State state);
 
-        template <IsCGI CGI>
-        void SetCgi(CGI&& cgi);
+        template <IsCgiCompatible CgiArg>
+        void SetCgi(CgiArg&& cgi);
+
+        void SetImsi(unsigned long imsi);
 
         std::optional<unsigned long> GetImsi() const;
         std::optional<unsigned int> GetMTmsi() const;
@@ -208,10 +232,10 @@ class S1apDB final
         State GetState() const;
 
       private:
-        std::optional<unsigned long> imsi_    = std::nullopt;
-        std::optional<unsigned int> mTmsi_    = std::nullopt;
-        std::optional<unsigned int> enodebID_ = std::nullopt;
-        std::optional<unsigned int> mmeID_    = std::nullopt;
+        std::optional<unsigned long> imsi_     = std::nullopt;
+        std::optional<unsigned int>  mTmsi_    = std::nullopt;
+        std::optional<unsigned int>  enodebID_ = std::nullopt;
+        std::optional<unsigned int>  mmeID_    = std::nullopt;
 
         std::optional<std::vector<unsigned char>> cgi_ = std::nullopt;
 
@@ -221,12 +245,27 @@ class S1apDB final
         unsigned long lastEventTimestamp_;
     };
 
-    std::unordered_map<unsigned long, Subscriber> imsiToSubscriber;
+    std::expected<unsigned long, HandleError> ResolveImsiFromEvent(const Event& event) const;
+    std::expected<unsigned long, HandleError> ResolveImsiFromEnodebID(unsigned int enodebID) const;
+    void RetachSubscriber(Subscriber& subscriber);
+
+    HandleOut ProcessNewAttach(const Event& event);
+    HandleOut ProcessExistingAttach(Subscriber& subscriber, const Event& event);
+    HandleOut ProcessDuplicateAttach(Subscriber& subscriber, const Event& event);
+    HandleOut ProcessIdentityResponseForNewUser(const Event& event);
+    HandleOut ProcessIdentityResponseForAttachingUser(Subscriber& subscriber, const Event& event);
+    HandleOut ProcessPagingRequest(Subscriber& subscriber, const Event& event);
+    HandleOut ProcessPathSwitchRequest(Subscriber& subscriber, const Event& event);
+    HandleOut ProcessUEContextRelease(Subscriber& subscriber, const Event& event);
+
+    std::unordered_map<unsigned long, Subscriber>   imsiToSubscriber;
     std::unordered_map<unsigned int, unsigned long> mTmsiToImsi;
     std::unordered_map<unsigned int, unsigned long> enodebIDToImsi;
     std::unordered_map<unsigned int, unsigned long> mmeIDToImsi;
 
+    std::unordered_map<unsigned long, unsigned long> imsiToIdentityRequestTimeout_;
+    const unsigned long IDENTITY_RESPONSE_TIMEOUT_MS = 5000;
 };
 
-#endif // S1AP_DB
+#endif // S1AP_DB_HPP
 
