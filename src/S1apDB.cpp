@@ -1,20 +1,21 @@
 #include "S1apDB.hpp"
 
 #include <print>
+#include <utility>
 
 const Event::Type& Event::GetType() const { return type_; }
-const unsigned long& Event::GetTimestamp() const { return timestamp_; }
-const std::optional<std::vector<unsigned char>>& Event::GetCgi() const { return cgi_; }
-const std::optional<unsigned long>& Event::GetImsi() const { return imsi_; }
-const std::optional<unsigned int>& Event::GetEnodebID() const { return enodebID_; }
-const std::optional<unsigned int>& Event::GetMmeID() const { return mmeID_; }
-const std::optional<unsigned int>& Event::GetMTmsi() const { return mTmsi_; }
+const S1ap::Timestamp& Event::GetTimestamp() const { return timestamp_; }
+const S1ap::OCgi& Event::GetCgi() const { return cgi_; }
+const S1ap::OImsi& Event::GetImsi() const { return imsi_; }
+const S1ap::OEnodebID& Event::GetEnodebID() const { return enodebID_; }
+const S1ap::OMmeID& Event::GetMmeID() const { return mmeID_; }
+const S1ap::OMTmsi& Event::GetMTmsi() const { return mTmsi_; }
 
 template <IsCgiCompatible CgiArg>
-Event Event::CreateAttachRequestWithImsi(const unsigned long timestamp,
-                                         const unsigned long imsi,
-                                         const unsigned int enodebID,
-                                         CgiArg&& cgi)
+Event Event::CreateAttachRequestWithImsi(const S1ap::Timestamp timestamp,
+                                             const S1ap::Imsi imsi,
+                                             const S1ap::EnodebID enodebID,
+                                             CgiArg&& cgi)
 {
   Event event{};
 
@@ -28,10 +29,10 @@ Event Event::CreateAttachRequestWithImsi(const unsigned long timestamp,
 }
 
 template <IsCgiCompatible CgiArg>
-Event Event::CreateAttachRequestWithMTmsi(const unsigned long timestamp,
-                                          const unsigned int enodebID,
-                                          const unsigned int mTmsi,
-                                          CgiArg&& cgi)
+Event Event::CreateAttachRequestWithMTmsi(const S1ap::Timestamp timestamp,
+                                              const S1ap::EnodebID enodebID,
+                                              const S1ap::MTmsi mTmsi,
+                                              CgiArg&& cgi)
 {
   Event event{};
 
@@ -45,11 +46,11 @@ Event Event::CreateAttachRequestWithMTmsi(const unsigned long timestamp,
 }
 
 template <IsCgiCompatible CgiArg>
-Event Event::CreateIdentityResponse(const unsigned long timestamp,
-                                    const unsigned long imsi,
-                                    const unsigned int enodebID,
-                                    const unsigned int mmeID,
-                                    CgiArg&& cgi)
+Event Event::CreateIdentityResponse(const S1ap::Timestamp timestamp,
+                                        const S1ap::Imsi imsi,
+                                        const S1ap::EnodebID enodebID,
+                                        const S1ap::MmeID mmeID,
+                                        CgiArg&& cgi)
 {
   Event event{};
 
@@ -63,10 +64,10 @@ Event Event::CreateIdentityResponse(const unsigned long timestamp,
   return event;
 }
 
-Event Event::CreateAttachAccept(const unsigned long timestamp,
-                                const unsigned int enodebID,
-                                const unsigned int mmeID,
-                                const unsigned int mTmsi)
+Event Event::CreateAttachAccept(const S1ap::Timestamp timestamp,
+                                    const S1ap::EnodebID enodebID,
+                                    const S1ap::MmeID mmeID,
+                                    const S1ap::MTmsi mTmsi)
 {
   Event event{};
 
@@ -80,9 +81,9 @@ Event Event::CreateAttachAccept(const unsigned long timestamp,
 }
 
 template <IsCgiCompatible CgiArg>
-Event Event::CreatePaging(const unsigned long timestamp,
-                          const unsigned int mTmsi,
-                          CgiArg&& cgi)
+Event Event::CreatePaging(const S1ap::Timestamp timestamp,
+                              const S1ap::MTmsi mTmsi,
+                              CgiArg&& cgi)
 {
   Event event{};
 
@@ -95,10 +96,10 @@ Event Event::CreatePaging(const unsigned long timestamp,
 }
 
 template <IsCgiCompatible CgiArg>
-Event Event::CreatePathSwitchRequest(const unsigned long timestamp,
-                                     const unsigned int enodebID,
-                                     const unsigned int mmeID,
-                                     CgiArg&& cgi)
+Event Event::CreatePathSwitchRequest(const S1ap::Timestamp timestamp,
+                                         const S1ap::EnodebID enodebID,
+                                         const S1ap::MmeID mmeID,
+                                         CgiArg&& cgi)
 {
   Event event{};
 
@@ -111,9 +112,9 @@ Event Event::CreatePathSwitchRequest(const unsigned long timestamp,
   return event;
 }
 
-Event Event::CreatePathSwitchRequestAcknowledge(const unsigned long timestamp,
-                                                const unsigned int enodebID,
-                                                const unsigned int mmeID)
+Event Event::CreatePathSwitchRequestAcknowledge(const S1ap::Timestamp timestamp,
+                                                    const S1ap::EnodebID enodebID,
+                                                    const S1ap::MmeID mmeID)
 {
   Event event{};
 
@@ -126,10 +127,10 @@ Event Event::CreatePathSwitchRequestAcknowledge(const unsigned long timestamp,
 }
 
 template <IsCgiCompatible CgiArg>
-Event Event::CreateUEContextReleaseCommand(const unsigned long timestamp,
-                                           const unsigned int enodebID,
-                                           const unsigned int mmeID,
-                                           CgiArg&& cgi)
+Event Event::CreateUEContextReleaseCommand(const S1ap::Timestamp timestamp,
+                                               const S1ap::EnodebID enodebID,
+                                               const S1ap::MmeID mmeID,
+                                               CgiArg&& cgi)
 {
   Event event{};
 
@@ -142,9 +143,9 @@ Event Event::CreateUEContextReleaseCommand(const unsigned long timestamp,
   return event;
 }
 
-Event Event::CreateUEContextReleaseResponse(const unsigned long timestamp,
-                                            const unsigned int enodebID,
-                                            const unsigned int mmeID)
+Event Event::CreateUEContextReleaseResponse(const S1ap::Timestamp timestamp,
+                                                const S1ap::EnodebID enodebID,
+                                                const S1ap::MmeID mmeID)
 {
   Event event{};
 
@@ -156,7 +157,7 @@ Event Event::CreateUEContextReleaseResponse(const unsigned long timestamp,
   return event;
 }
 
-std::expected<void, Event::Error> Event::Verify() const
+Event::VerifyOut Event::Verify() const
 {
   switch (type_)
   {
@@ -189,7 +190,7 @@ std::expected<void, Event::Error> Event::Verify() const
   }
 }
 
-std::expected<void, Event::Error> Event::VerifyAttachRequest() const
+Event::VerifyOut Event::VerifyAttachRequest() const
 {
   if (imsi_.has_value() && mTmsi_.has_value())
     return std::unexpected(Error::WrongImsiAndMTmsiArgs);
@@ -202,7 +203,7 @@ std::expected<void, Event::Error> Event::VerifyAttachRequest() const
   return {};
 }
 
-std::expected<void, Event::Error> Event::VerifyIdentityResponse() const
+Event::VerifyOut Event::VerifyIdentityResponse() const
 {
   if (!imsi_.has_value())
     return std::unexpected(Error::ImsiNotExist);
@@ -215,7 +216,7 @@ std::expected<void, Event::Error> Event::VerifyIdentityResponse() const
   return {};
 }
 
-std::expected<void, Event::Error> Event::VerifyAttachAccept() const
+Event::VerifyOut Event::VerifyAttachAccept() const
 {
   if (!enodebID_.has_value())
     return std::unexpected(Error::BadEnodebID);
@@ -226,7 +227,7 @@ std::expected<void, Event::Error> Event::VerifyAttachAccept() const
   return {};
 }
 
-std::expected<void, Event::Error> Event::VerifyPaging() const
+Event::VerifyOut Event::VerifyPaging() const
 {
   if (!mTmsi_.has_value())
     return std::unexpected(Error::BadMTmsi);
@@ -235,7 +236,7 @@ std::expected<void, Event::Error> Event::VerifyPaging() const
   return {};
 }
 
-std::expected<void, Event::Error> Event::VerifyPathSwitchRequest() const
+Event::VerifyOut Event::VerifyPathSwitchRequest() const
 {
   if (!enodebID_.has_value())
     return std::unexpected(Error::BadEnodebID);
@@ -246,7 +247,7 @@ std::expected<void, Event::Error> Event::VerifyPathSwitchRequest() const
   return {};
 }
 
-std::expected<void, Event::Error> Event::VerifyPathSwitchRequestAcknowledge() const
+Event::VerifyOut Event::VerifyPathSwitchRequestAcknowledge() const
 {
   if (!enodebID_.has_value())
     return std::unexpected(Error::BadEnodebID);
@@ -255,7 +256,7 @@ std::expected<void, Event::Error> Event::VerifyPathSwitchRequestAcknowledge() co
   return {};
 }
 
-std::expected<void, Event::Error> Event::VerifyUEContextReleaseCommand() const
+Event::VerifyOut Event::VerifyUEContextReleaseCommand() const
 {
   if (!enodebID_.has_value())
     return std::unexpected(Error::BadEnodebID);
@@ -266,7 +267,7 @@ std::expected<void, Event::Error> Event::VerifyUEContextReleaseCommand() const
   return {};
 }
 
-std::expected<void, Event::Error> Event::VerifyUEContextReleaseResponse() const
+Event::VerifyOut Event::VerifyUEContextReleaseResponse() const
 {
   if (!enodebID_.has_value())
     return std::unexpected(Error::BadEnodebID);
@@ -276,29 +277,29 @@ std::expected<void, Event::Error> Event::VerifyUEContextReleaseResponse() const
 }
 
 S1apOut::Type S1apOut::GetType() const { return type_; }
-unsigned long S1apOut::GetImsi() const { return imsi_; }
-const std::optional<std::vector<unsigned char>>& S1apOut::GetCgi() const { return cgi_; }
+S1ap::Imsi S1apOut::GetImsi() const { return imsi_; }
+const S1ap::OCgi& S1apOut::GetCgi() const { return cgi_; }
 
-void S1apDB::Subscriber::SetLastEvent(const Event::Type eventType, const unsigned long timestamp)
+void S1apDB::Subscriber::SetLastEvent(const Event::Type eventType, const S1ap::Timestamp timestamp)
 {
   eventType_ = eventType;
   lastEventTimestamp_ = timestamp;
 }
 
-void S1apDB::Subscriber::SetMTmsi(const unsigned int mTmsi) { mTmsi_ = mTmsi; }
-void S1apDB::Subscriber::SetEnodebID(const unsigned int enodebID) { enodebID_ = enodebID; }
-void S1apDB::Subscriber::SetMmeID(const unsigned int mmeID) { mmeID_ = mmeID; }
+void S1apDB::Subscriber::SetMTmsi(const S1ap::MTmsi mTmsi) { mTmsi_ = mTmsi; }
+void S1apDB::Subscriber::SetEnodebID(const S1ap::EnodebID enodebID) { enodebID_ = enodebID; }
+void S1apDB::Subscriber::SetMmeID(const S1ap::MmeID mmeID) { mmeID_ = mmeID; }
 void S1apDB::Subscriber::SetState(const State state) { state_ = state; }
 
-std::optional<unsigned long> S1apDB::Subscriber::GetImsi() const { return imsi_; }
-std::optional<unsigned int> S1apDB::Subscriber::GetMTmsi() const { return mTmsi_; }
-std::optional<unsigned int> S1apDB::Subscriber::GetEnodebID() const { return enodebID_; }
-std::optional<unsigned int> S1apDB::Subscriber::GetMmeID() const { return mmeID_; }
+S1ap::OImsi S1apDB::Subscriber::GetImsi() const { return imsi_; }
+S1ap::OMTmsi S1apDB::Subscriber::GetMTmsi() const { return mTmsi_; }
+S1ap::OEnodebID S1apDB::Subscriber::GetEnodebID() const { return enodebID_; }
+S1ap::OMmeID S1apDB::Subscriber::GetMmeID() const { return mmeID_; }
 
-const std::optional<std::vector<unsigned char>>& S1apDB::Subscriber::GetCgi() const { return cgi_; }
+const S1ap::OCgi& S1apDB::Subscriber::GetCgi() const { return cgi_; }
 
 Event::Type S1apDB::Subscriber::GetLastEventType() const { return eventType_; }
-unsigned long S1apDB::Subscriber::GetLastEventTimestamp() const { return lastEventTimestamp_; }
+S1ap::Timestamp S1apDB::Subscriber::GetLastEventTimestamp() const { return lastEventTimestamp_; }
 S1apDB::Subscriber::State S1apDB::Subscriber::GetState() const { return state_; }
 
 S1apDB& S1apDB::GetInstance()
@@ -307,14 +308,14 @@ S1apDB& S1apDB::GetInstance()
   return s1apDB;
 }
 
-unsigned int S1apDB::GenerateNewMTmsi()
+S1ap::MTmsi S1apDB::GenerateNewMTmsi()
 {
   return nextMTmsi_++;
 }
 
 S1apDB::HandleOut S1apDB::ProcessNewAttach(const Event& event)
 {
-  unsigned long imsi = event.GetImsi().value();
+  auto imsi = event.GetImsi().value();
 
   Subscriber newSubscriber;
 
@@ -324,11 +325,11 @@ S1apDB::HandleOut S1apDB::ProcessNewAttach(const Event& event)
   newSubscriber.SetEnodebID(event.GetEnodebID().value());
 
   if (event.GetCgi().has_value())
-      newSubscriber.SetCgi(event.GetCgi().value());
+    newSubscriber.SetCgi(event.GetCgi().value());
 
   imsiToSubscriber[imsi] = newSubscriber;
 
-  unsigned int newMTmsi = GenerateNewMTmsi();
+  auto newMTmsi = GenerateNewMTmsi();
   imsiToSubscriber[imsi].SetMTmsi(newMTmsi);
   mTmsiToImsi[newMTmsi] = imsi;
   enodebIDToImsi[newSubscriber.GetEnodebID().value()] = imsi;
@@ -344,7 +345,7 @@ S1apDB::HandleOut S1apDB::ProcessExistingAttach(Subscriber& subscriber, const Ev
   subscriber.SetEnodebID(event.GetEnodebID().value());
 
   if (event.GetCgi().has_value())
-      subscriber.SetCgi(event.GetCgi().value());
+    subscriber.SetCgi(event.GetCgi().value());
 
   subscriber.SetLastEvent(event.GetType(), event.GetTimestamp());
 
@@ -352,8 +353,8 @@ S1apDB::HandleOut S1apDB::ProcessExistingAttach(Subscriber& subscriber, const Ev
 
   if (!subscriber.GetMTmsi().has_value())
   {
-      subscriber.SetMTmsi(currentMTmsi);
-      mTmsiToImsi[currentMTmsi] = event.GetImsi().value();
+    subscriber.SetMTmsi(currentMTmsi);
+    mTmsiToImsi[currentMTmsi] = event.GetImsi().value();
   }
 
   enodebIDToImsi[event.GetEnodebID().value()] = subscriber.GetImsi().value();
@@ -372,7 +373,7 @@ S1apDB::HandleOut S1apDB::ProcessDuplicateAttach(Subscriber& subscriber, const E
 
 S1apDB::HandleOut S1apDB::ProcessIdentityResponseForNewUser(const Event& event)
 {
-  unsigned long imsi = event.GetImsi().value();
+  auto imsi = event.GetImsi().value();
 
   imsiToSubscriber[imsi] = {};
   auto& newSubscriber = imsiToSubscriber[imsi];
@@ -385,7 +386,7 @@ S1apDB::HandleOut S1apDB::ProcessIdentityResponseForNewUser(const Event& event)
   if (event.GetCgi().has_value())
     newSubscriber.SetCgi(event.GetCgi().value());
 
-  unsigned int newMTmsi = GenerateNewMTmsi();
+  auto newMTmsi = GenerateNewMTmsi();
   imsiToSubscriber[imsi].SetMTmsi(newMTmsi);
   mTmsiToImsi[newMTmsi] = imsi;
   enodebIDToImsi[event.GetEnodebID().value()] = imsi;
@@ -404,12 +405,12 @@ S1apDB::HandleOut S1apDB::ProcessIdentityResponseForAttachingUser(Subscriber& su
   if (event.GetCgi().has_value())
     subscriber.SetCgi(event.GetCgi().value());
 
-  unsigned int currentMTmsi = subscriber.GetMTmsi().value_or(GenerateNewMTmsi());
+  auto currentMTmsi = subscriber.GetMTmsi().value_or(GenerateNewMTmsi());
 
   if (!subscriber.GetMTmsi().has_value())
   {
-      subscriber.SetMTmsi(currentMTmsi);
-      mTmsiToImsi[currentMTmsi] = event.GetImsi().value();
+    subscriber.SetMTmsi(currentMTmsi);
+    mTmsiToImsi[currentMTmsi] = event.GetImsi().value();
   }
 
   enodebIDToImsi[event.GetEnodebID().value()] = subscriber.GetImsi().value();
@@ -424,10 +425,10 @@ S1apDB::HandleOut S1apDB::ProcessPagingRequest(Subscriber& subscriber, const Eve
   if (subscriber.GetState() != Subscriber::State::ATTACHED
   &&  subscriber.GetState() != Subscriber::State::DETACHED)
   {
-      std::println(stderr, "MME: Paging for user {} received in unexpected state: {}. Ignoring.",
-                   subscriber.GetImsi().value(), static_cast<int>(subscriber.GetState()));
+    std::println(stderr, "MME: Paging for user {} received in unexpected state: {}. Ignoring.",
+                 subscriber.GetImsi().value(), static_cast<int>(subscriber.GetState()));
 
-      return std::nullopt;
+    return std::nullopt;
   }
 
   subscriber.SetLastEvent(event.GetType(), event.GetTimestamp());
@@ -443,14 +444,14 @@ S1apDB::HandleOut S1apDB::ProcessPathSwitchRequest(Subscriber& subscriber, const
 {
   if (subscriber.GetState() != Subscriber::State::ATTACHED)
   {
-      std::println(stderr, "MME: Path Switch Request for user {} received in unexpected state: {}. Ignoring.",
-                   subscriber.GetImsi().value(), static_cast<int>(subscriber.GetState()));
+    std::println(stderr, "MME: Path Switch Request for user {} received in unexpected state: {}. Ignoring.",
+                 subscriber.GetImsi().value(), static_cast<int>(subscriber.GetState()));
 
-      return std::unexpected(Error::WrongState);
+    return std::unexpected(Error::WrongState);
   }
 
-  unsigned int oldEnodebID = event.GetEnodebID().value();
-  unsigned int newEnodebID = event.GetCgi().value_or(std::vector<unsigned char>{}).front();
+  auto oldEnodebID = event.GetEnodebID().value();
+  auto newEnodebID = event.GetCgi().value().front(); // Assuming CGI contains the new eNodeB ID
 
   subscriber.SetLastEvent(event.GetType(), event.GetTimestamp());
   subscriber.SetEnodebID(newEnodebID);
@@ -467,7 +468,7 @@ S1apDB::HandleOut S1apDB::ProcessPathSwitchRequest(Subscriber& subscriber, const
 
 S1apDB::HandleOut S1apDB::ProcessUEContextRelease(Subscriber& subscriber, const Event& event)
 {
-  unsigned long imsi = subscriber.GetImsi().value();
+  auto imsi = subscriber.GetImsi().value();
   
   subscriber.SetState(Subscriber::State::DETACHED);
   subscriber.SetLastEvent(event.GetType(), event.GetTimestamp());
@@ -481,10 +482,10 @@ S1apDB::HandleOut S1apDB::ProcessUEContextRelease(Subscriber& subscriber, const 
 void S1apDB::DetachSubscriber(Subscriber& subscriber)
 {
   if (subscriber.GetMTmsi().has_value())
-      mTmsiToImsi.erase(subscriber.GetMTmsi().value());
+    mTmsiToImsi.erase(subscriber.GetMTmsi().value());
 
   if (subscriber.GetEnodebID().has_value())
-      enodebIDToImsi.erase(subscriber.GetEnodebID().value());
+    enodebIDToImsi.erase(subscriber.GetEnodebID().value());
 
   imsiToSubscriber.erase(subscriber.GetImsi().value());
 }
@@ -529,92 +530,91 @@ S1apDB::HandleOut S1apDB::Handle(const Event& event)
 
 S1apDB::HandleOut S1apDB::HandleAttachRequest(const Event& event)
 {
-    auto imsiResult = ResolveImsiFromEvent(event);
-    if (!imsiResult.has_value()) {
-        if (event.GetMTmsi().has_value())
-        {
-             std::println("MME: Received Attach Request with unknown MTmsi: {}. Sending Identity Request.", event.GetMTmsi().value());
-             return std::nullopt;
-        }
-
-        return std::unexpected(Error::NoImsiOrMTmsiInEvent);
+  auto imsiResult = ResolveImsiFromEvent(event);
+  if (!imsiResult.has_value()) {
+    if (event.GetMTmsi().has_value())
+    {
+       std::println("MME: Received Attach Request with unknown MTmsi: {}. Sending Identity Request.", event.GetMTmsi().value());
+       return std::nullopt;
     }
 
-    const auto imsi = imsiResult.value();
-    auto it = imsiToSubscriber.find(imsi);
+    return std::unexpected(Error::NoImsiOrMTmsiInEvent);
+  }
 
-    if (it == imsiToSubscriber.end())
-        return ProcessNewAttach(event);
+  const auto imsi = imsiResult.value();
+  auto it = imsiToSubscriber.find(imsi);
 
-    Subscriber& subscriber = it->second;
+  if (it == imsiToSubscriber.end())
+    return ProcessNewAttach(event);
 
-    if (subscriber.GetState() == Subscriber::State::ATTACHED)
-        return ProcessDuplicateAttach(subscriber, event);
+  Subscriber& subscriber = it->second;
 
-    return ProcessExistingAttach(subscriber, event);
+  if (subscriber.GetState() == Subscriber::State::ATTACHED)
+    return ProcessDuplicateAttach(subscriber, event);
+
+  return ProcessExistingAttach(subscriber, event);
 }
 
 S1apDB::HandleOut S1apDB::HandleIdentityResponse(const Event& event)
 {
-    unsigned long imsi = event.GetImsi().value();
-    auto it = imsiToSubscriber.find(imsi);
+  auto imsi = event.GetImsi().value();
+  auto it = imsiToSubscriber.find(imsi);
 
-    if (it == imsiToSubscriber.end())
-        return ProcessIdentityResponseForNewUser(event);
+  if (it == imsiToSubscriber.end())
+    return ProcessIdentityResponseForNewUser(event);
 
-    Subscriber& subscriber = it->second;
+  Subscriber& subscriber = it->second;
 
-    if (subscriber.GetState() == Subscriber::State::ATTACHING)
-        return ProcessIdentityResponseForAttachingUser(subscriber, event);
+  if (subscriber.GetState() == Subscriber::State::ATTACHING)
+    return ProcessIdentityResponseForAttachingUser(subscriber, event);
 
-    std::println(stderr, "MME: Received Identity Response for user {} in unexpected state: {}. Ignoring.",
-                 imsi, static_cast<int>(subscriber.GetState()));
+  std::println(stderr, "MME: Received Identity Response for user {} in unexpected state: {}. Ignoring.",
+               imsi, static_cast<int>(subscriber.GetState()));
 
-    return std::nullopt;
+  return std::nullopt;
 }
 
 S1apDB::HandleOut S1apDB::HandlePaging(const Event& event)
 {
-    return ResolveImsiFromEvent(event)
-        .and_then([&](unsigned long imsi) -> HandleOut {
-            auto it = imsiToSubscriber.find(imsi);
-            if (it == imsiToSubscriber.end()) {
-                std::println(stderr, "MME: Paging for non-existent subscriber IMSI: {} (from MTmsi: {})", imsi, event.GetMTmsi().value());
-                return std::unexpected(Error::SubscriberNotFound);
-            }
-            return ProcessPagingRequest(it->second, event);
-        });
+  return ResolveImsiFromEvent(event)
+      .and_then([&](S1ap::Imsi imsi) -> HandleOut {
+          auto it = imsiToSubscriber.find(imsi);
+          if (it == imsiToSubscriber.end()) {
+              std::println(stderr, "MME: Paging for non-existent subscriber IMSI: {} (from MTmsi: {})", imsi, event.GetMTmsi().value());
+              return std::unexpected(Error::SubscriberNotFound);
+          }
+          return ProcessPagingRequest(it->second, event);
+      });
 }
 
 S1apDB::HandleOut S1apDB::HandlePathSwitchRequest(const Event& event)
 {
-    unsigned int oldEnodebID = event.GetEnodebID().value();
+  auto oldEnodebID = event.GetEnodebID().value();
 
-    return ResolveImsiFromEnodebID(oldEnodebID)
-        .and_then([&](unsigned long imsi) -> HandleOut {
-            auto it = imsiToSubscriber.find(imsi);
-            if (it == imsiToSubscriber.end()) {
-                std::println(stderr, "MME: Path Switch Request for non-existent subscriber IMSI: {}", imsi);
-                return std::unexpected(Error::SubscriberNotFound);
-            }
+  return ResolveImsiFromEnodebID(oldEnodebID)
+      .and_then([&](S1ap::Imsi imsi) -> HandleOut {
+          auto it = imsiToSubscriber.find(imsi);
+          if (it == imsiToSubscriber.end()) {
+              std::println(stderr, "MME: Path Switch Request for non-existent subscriber IMSI: {}", imsi);
+              return std::unexpected(Error::SubscriberNotFound);
+          }
 
-            return ProcessPathSwitchRequest(it->second, event);
-        });
+          return ProcessPathSwitchRequest(it->second, event);
+      });
 }
 
 S1apDB::HandleOut S1apDB::HandleUEContextReleaseResponse(const Event& event)
 {
-    unsigned int enodebID = event.GetEnodebID().value();
+  auto enodebID = event.GetEnodebID().value();
 
-    return ResolveImsiFromEnodebID(enodebID)
-        .and_then([&](unsigned long imsi) -> HandleOut {
-            auto it = imsiToSubscriber.find(imsi);
-            if (it == imsiToSubscriber.end()) {
-                std::println(stderr, "MME: UE Context Release Response for non-existent subscriber IMSI: {}", imsi);
-                return std::unexpected(Error::SubscriberNotFound);
-            }
+  return ResolveImsiFromEnodebID(enodebID)
+      .and_then([&](S1ap::Imsi imsi) -> HandleOut {
+          auto it = imsiToSubscriber.find(imsi);
+          if (it == imsiToSubscriber.end()) {
+              std::println(stderr, "MME: UE Context Release Response for non-existent subscriber IMSI: {}", imsi);
+              return std::unexpected(Error::SubscriberNotFound);
+          }
 
-            return ProcessUEContextRelease(it->second, event);
-        });
+          return ProcessUEContextRelease(it->second, event);
+      });
 }
-
