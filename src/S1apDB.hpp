@@ -5,6 +5,7 @@
 #include <optional>
 #include <type_traits>
 #include <unordered_map>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -57,19 +58,54 @@ class Event final
     static Event CreateAttachRequestWithImsi(const S1ap::Timestamp timestamp,
                                              const S1ap::Imsi imsi,
                                              const S1ap::EnodebID enodebID, 
-                                             CgiArg&& cgi);
+                                             CgiArg&& cgi)
+    {
+      Event event{};
+
+      event.type_ = Type::AttachRequest;
+      event.timestamp_ = timestamp;
+      event.imsi_ = imsi;
+      event.enodebID_ = enodebID;
+      event.cgi_ = std::forward<CgiArg>(cgi);
+
+      return event;
+    }
+
     template <IsCgiCompatible CgiArg>
     static Event CreateAttachRequestWithMTmsi(const S1ap::Timestamp timestamp,
                                               const S1ap::EnodebID enodebID,
                                               const S1ap::MTmsi mTmsi,
-                                              CgiArg&& cgi);
+                                              CgiArg&& cgi)
+    {
+      Event event{};
+
+      event.type_ = Type::AttachRequest;
+      event.timestamp_ = timestamp;
+      event.mTmsi_ = mTmsi;
+      event.enodebID_ = enodebID;
+      event.cgi_ = std::forward<CgiArg>(cgi);
+
+      return event;
+    }
 
     template <IsCgiCompatible CgiArg>
     static Event CreateIdentityResponse(const S1ap::Timestamp timestamp,
                                         const S1ap::Imsi imsi,
                                         const S1ap::EnodebID enodebID,
                                         const S1ap::MmeID mmeID,
-                                        CgiArg&& cgi);
+                                        CgiArg&& cgi)
+    {
+      Event event{};
+
+      event.type_ = Type::IdentityResponse;
+      event.timestamp_ = timestamp;
+      event.imsi_ = imsi;
+      event.enodebID_ = enodebID;
+      event.mmeID_ = mmeID;
+      event.cgi_ = std::forward<CgiArg>(cgi);
+
+      return event;
+    }
 
     static Event CreateAttachAccept(const S1ap::Timestamp timestamp,
                                     const S1ap::EnodebID enodebID,
@@ -79,13 +115,34 @@ class Event final
     template <IsCgiCompatible CgiArg>
     static Event CreatePaging(const S1ap::Timestamp timestamp,
                               const S1ap::MTmsi mTmsi,
-                              CgiArg&& cgi);
+                              CgiArg&& cgi)
+    {
+      Event event{};
+
+      event.type_ = Type::Paging;
+      event.timestamp_ = timestamp;
+      event.mTmsi_ = mTmsi;
+      event.cgi_ = std::forward<CgiArg>(cgi);
+
+      return event;
+    }
 
     template <IsCgiCompatible CgiArg>
     static Event CreatePathSwitchRequest(const S1ap::Timestamp timestamp,
                                          const S1ap::EnodebID enodebID,
                                          const S1ap::MmeID mmeID,
-                                         CgiArg&& cgi);
+                                         CgiArg&& cgi)
+    {
+      Event event{};
+
+      event.type_ = Type::PathSwitchRequest;
+      event.timestamp_ = timestamp;
+      event.enodebID_ = enodebID;
+      event.mmeID_ = mmeID;
+      event.cgi_ = std::forward<CgiArg>(cgi);
+
+      return event;
+    }
 
     static Event CreatePathSwitchRequestAcknowledge(const S1ap::Timestamp timestamp,
                                                     const S1ap::EnodebID enodebID,
@@ -95,7 +152,18 @@ class Event final
     static Event CreateUEContextReleaseCommand(const S1ap::Timestamp timestamp,
                                                const S1ap::EnodebID enodebID,
                                                const S1ap::MmeID mmeID,
-                                               CgiArg&& cgi);
+                                               CgiArg&& cgi)
+    {
+      Event event{};
+
+      event.type_ = Type::UEContextReleaseCommand;
+      event.timestamp_ = timestamp;
+      event.enodebID_ = enodebID;
+      event.mmeID_ = mmeID;
+      event.cgi_ = std::forward<CgiArg>(cgi);
+
+      return event;
+    }
 
     static Event CreateUEContextReleaseResponse(const S1ap::Timestamp timestamp,
                                                 const S1ap::EnodebID enodebID,
@@ -236,7 +304,7 @@ class S1apDB final
         void SetState(const State state);
 
         template <IsCgiCompatible CgiArg>
-        void SetCgi(CgiArg&& cgi);
+        void SetCgi(CgiArg&& cgi) { cgi_ = std::forward<S1ap::OCgi>(cgi); }
 
         void SetImsi(S1ap::Imsi imsi);
 
